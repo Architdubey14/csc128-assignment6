@@ -1,48 +1,116 @@
 """
-CSC-128 Assignment 6: TF-IDF retrieval over the knowledge base
+CSC-128 Assignment 6: retrieval
 Archit Dubey
 
 Imports from knowledge.py only. Nothing here imports Streamlit or groq, so the
 tests run with no API key at all.
 """
+import re
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from knowledge import CHUNKS
+from knowledge import DOCUMENTS
+
+STOP_WORDS = {
+    "a", "an", "the", "i", "me", "my", "we", "us", "our", "you", "your",
+    "is", "am", "are", "was", "were", "be", "been", "do", "does", "did",
+    "have", "has", "had", "can", "could", "will", "would", "should",
+    "to", "for", "of", "in", "on", "at", "with", "about", "from", "by",
+    "and", "or", "but", "it", "its", "this", "that", "there", "here",
+    "if", "so", "as", "up", "out", "any", "some", "please", "hi", "hello",
+    "what", "when", "where", "who", "which", "why", "how",
+    "get", "got", "getting", "need", "want", "like", "much", "many",
+    "also", "just", "make", "take", "come", "go",
+}
 
 # Threshold set from the scores printed by test_retriever.py, not guessed.
-# Lowest score among should-retrieve: 0.201. Highest among should-refuse: 0.000.
+# Lowest score among should-retrieve: 0.141. Highest among should-refuse: 0.000.
 # 0.10 sits in the middle of that gap. See the README.
 DEFAULT_THRESHOLD = 0.10
+DEFAULT_TOP_K = 3
+
+# Longest first, so "ations" is tried before "ation" and "s".
+SUFFIXES = ["ations", "ation", "ings", "ing", "ies", "ers", "er", "ed", "es", "s"]
+
+
+def stem(word):
+    """
+    Strip common suffixes so that reserve, reserved, and reservation
+    collapse to the same token. Not a real Porter stemmer.
+    """
+    for suffix in SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 4:
+            word = word[: -len(suffix)]
+            break
+
+    # "ies" was stripped to "i", so put the y back: classies -> classy.
+    if word.endswith("i"):
+        word = word[:-1] + "y"
+    return word
+
+
+def analyze(text):
+    """Normalize, tokenize, stem, and add bigrams."""
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+
+    tokens = []
+    for word in text.split():
+        if word in STOP_WORDS:
+            continue
+        tokens.append(stem(word))
+
+    # Bigrams let a two word idea like "day pass" or "front desk" score as
+    # one feature instead of two loose words.
+    bigrams = []
+    for i in range(len(tokens) - 1):
+        bigrams.append(tokens[i] + "_" + tokens[i + 1])
+
+    return tokens + bigrams
 
 
 class Retriever:
-    def __init__(self, chunks=None, threshold=DEFAULT_THRESHOLD):
-        if chunks is None:
-            chunks = CHUNKS
+    def __init__(self, documents=None, threshold=DEFAULT_THRESHOLD):
+        """Fit a TfidfVectorizer using the analyze function above."""
+        if documents is None:
+            documents = DOCUMENTS
 
-        self.chunks = chunks
+        self.documents = documents
         self.threshold = threshold
 
-        texts = [chunk["text"] for chunk in chunks]
-        self.vectorizer = TfidfVectorizer(stop_words="english")
+        texts = [document["text"] for document in documents]
+        self.vectorizer = TfidfVectorizer(analyzer=analyze)
         self.matrix = self.vectorizer.fit_transform(texts)
 
-    def search(self, question, top_k=3):
-        """Return a list of (chunk, score) above the threshold, best first."""
+    def search(self, question, top_k=DEFAULT_TOP_K):
+        """
+        Return a list of (document, score), best first, dropping anything
+        below the threshold.
+
+        An empty list is correct and important. It is what tells the bot to
+        refuse instead of calling the model with nothing useful.
+        """
         vector = self.vectorizer.transform([question])
         scores = cosine_similarity(vector, self.matrix)[0]
 
-        results = []
-        for chunk, score in zip(self.chunks, scores):
+        hits = []
+        for document, score in zip(self.documents, scores):
             if score >= self.threshold:
-                results.append((chunk, float(score)))
+                hits.append((document, float(score)))
 
-        results.sort(key=lambda pair: pair[1], reverse=True)
-        return results[:top_k]
+        hits.sort(key=lambda pair: pair[1], reverse=True)
+        return hits[:top_k]
 
     def best_score(self, question):
-        """Return the single highest score for a question, ignoring the threshold."""
+        """Highest score for a question, ignoring the threshold. Used by the tests."""
         vector = self.vectorizer.transform([question])
         scores = cosine_similarity(vector, self.matrix)[0]
         return float(max(scores))
+
+    def build_context(self, hits):
+        """Format retrieved chunks for the prompt, with their sources."""
+        parts = []
+        for document, score in hits:
+            parts.append("[" + document["source"] + "]\n" + document["text"])
+        return "\n\n".join(parts)

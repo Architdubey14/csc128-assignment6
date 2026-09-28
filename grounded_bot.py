@@ -55,26 +55,18 @@ def get_client():
     return Groq(api_key=key)
 
 
-def build_context(results):
-    """Turn retrieved chunks into one clearly delimited context block."""
-    parts = []
-    for chunk, score in results:
-        parts.append("[" + chunk["source"] + "]\n" + chunk["text"])
-    return "\n\n".join(parts)
-
-
 def answer(client, retriever, question, placeholder):
     """
     Retrieve first. If nothing comes back, refuse without calling the model at all.
     """
-    results = retriever.search(question)
+    hits = retriever.search(question)
 
     # Short circuit. The model is never called on an empty retrieval.
-    if not results:
+    if not hits:
         placeholder.markdown(REFUSAL)
         return REFUSAL, []
 
-    context = build_context(results)
+    context = retriever.build_context(hits)
     user_block = (
         "CONTEXT START\n"
         + context
@@ -98,7 +90,7 @@ def answer(client, retriever, question, placeholder):
                 full_text += token
                 placeholder.markdown(full_text + "▌")
         placeholder.markdown(full_text)
-        return full_text, results
+        return full_text, hits
 
     except RateLimitError:
         message = (
@@ -118,14 +110,16 @@ def answer(client, retriever, question, placeholder):
         return message, []
 
 
-def show_sources(results):
-    """Display which chunks the answer came from."""
-    if not results:
+def show_sources(hits):
+    """Display which documents the answer came from."""
+    if not hits:
         st.caption("Sources: none retrieved, so no answer was generated.")
         return
     names = []
-    for chunk, score in results:
-        names.append(chunk["source"] + " (" + chunk["id"] + ", " + format(score, ".3f") + ")")
+    for document, score in hits:
+        names.append(
+            document["source"] + " (" + document["id"] + ", " + format(score, ".3f") + ")"
+        )
     st.caption("Sources: " + "; ".join(names))
 
 
@@ -144,10 +138,10 @@ def main():
 
     with st.sidebar:
         st.subheader("Retrieval")
-        st.write("Chunks in knowledge base:", len(retriever.chunks))
+        st.write("Documents in knowledge base:", len(retriever.documents))
         st.write("Similarity threshold:", DEFAULT_THRESHOLD)
         st.caption(
-            "If no chunk scores above the threshold, the model is not called at all "
+            "If no document scores above the threshold, the model is not called at all "
             "and the refusal comes straight from the code."
         )
         if st.button("Clear conversation"):
@@ -161,7 +155,7 @@ def main():
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if message["role"] == "assistant":
-                show_sources(message.get("results", []))
+                show_sources(message.get("hits", []))
 
     question = st.chat_input("Ask about GYMARC")
 
@@ -172,11 +166,11 @@ def main():
 
         with st.chat_message("assistant"):
             placeholder = st.empty()
-            reply, results = answer(client, retriever, question, placeholder)
-            show_sources(results)
+            reply, hits = answer(client, retriever, question, placeholder)
+            show_sources(hits)
 
         st.session_state.messages.append(
-            {"role": "assistant", "content": reply, "results": results}
+            {"role": "assistant", "content": reply, "hits": hits}
         )
 
 

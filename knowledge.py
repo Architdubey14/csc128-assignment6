@@ -6,7 +6,7 @@ One self contained fact per chunk, written the way a member would ask about it.
 This file imports nothing. Data flows one way, from here outward.
 """
 
-CHUNKS = [
+DOCUMENTS = [
     {
         "id": "hours",
         "source": "GYMARC front desk hours sheet",
@@ -21,10 +21,10 @@ CHUNKS = [
         "id": "membership_price",
         "source": "GYMARC membership pricing sheet",
         "text": (
-            "A standard GYMARC membership costs 35 dollars per month. A student "
-            "membership costs 25 dollars per month and requires a valid student ID. "
-            "There is no contract and no sign up fee, and you pay month to month. "
-            "Both memberships include full access to the gym floor."
+            "A GYMARC membership costs 35 dollars per month. Students get a discount "
+            "and a student membership is 25 dollars, with a valid student ID. There is "
+            "no contract and no sign up fee. Both memberships include full access to "
+            "the gym floor and all equipment."
         ),
     },
     {
@@ -32,9 +32,9 @@ CHUNKS = [
         "source": "GYMARC membership agreement",
         "text": (
             "To cancel your GYMARC membership, stop by the front desk or email "
-            "support@gym.com. Cancellations need 30 days notice, so you will be "
-            "billed one more time after you cancel. You can also quit, end, or stop "
-            "coming this same way."
+            "support@gym.com. You have to give 30 days notice, so you will be billed "
+            "one more time after you cancel. You can also quit, end, or stop coming "
+            "this same way."
         ),
     },
     {
@@ -42,9 +42,9 @@ CHUNKS = [
         "source": "GYMARC membership agreement",
         "text": (
             "If you need a break from GYMARC without cancelling, you can freeze or "
-            "pause your account for up to three months. A frozen account is not "
-            "billed while it is paused and keeps your current rate when you come back. "
-            "Ask at the front desk to put your plan on hold temporarily."
+            "pause your account for up to three months. A frozen account is not billed "
+            "while it is paused and keeps your current rate when you come back. Ask at "
+            "the front desk to put your plan on hold for a few weeks or months."
         ),
     },
     {
@@ -100,8 +100,8 @@ CHUNKS = [
         "source": "GYMARC membership pricing sheet",
         "text": (
             "To join GYMARC, come to the front desk with a photo ID and sign up in "
-            "person. You can start the same day you sign up. Students should bring a "
-            "student ID to get the cheaper rate."
+            "person. You can start the same day you sign up. Bring proof of enrollment "
+            "if you are signing up at the student rate."
         ),
     },
 ]
